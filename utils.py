@@ -4,22 +4,17 @@
 Web Indexing and Data Mining - ENSAI 2020
 Authors : BERNARD Renan & LETOUQ Mathilde
 
-This  module  contains all  the functions used for  the Web Indexind and 
+This  module  contains all  the functions used for  the Web Indexind and
 Data Mining course.
 """
-
-import nltk
+import os
 import re
 import numpy as np
 import pandas as pd
-import os
+import nltk
 
 from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer 
 from nltk.stem import PorterStemmer
-from nltk.corpus import wordnet
-
-from collections import Counter
 
 nltk.download('stopwords')
 
@@ -31,7 +26,7 @@ def generate_texts_dataframe():
     Returns:
         pandas.DataFrame: "Text" : raw text of the document
                           "Author" : author of the document
-                          "DocumentId" : id of the document
+                          "Document_d" : id of the document
 
     TODO:
         Get the path through a parameters.
@@ -50,13 +45,13 @@ def generate_texts_dataframe():
                 as current_file:
                 texts.append(current_file.read())
                 authors.append(author)
-    
-    documentIds = [re.findall(r'\d+', documentId)[0] \
-        for documentId in documents]
-                
-    texts = pd.DataFrame({'Text' : texts, 
-                          "Author" : authors, 
-                          "DocumentId" : documentIds})
+
+    document_ids = [re.findall(r'\d+', document_id)[0] \
+        for document_id in documents]
+
+    texts = pd.DataFrame({'Text' : texts,
+                          "Author" : authors,
+                          "DocumentId" : document_ids})
     return texts
 
 def tokenize_text(text):
@@ -73,61 +68,67 @@ def tokenize_text(text):
         list: a list containing the tokens.
     """
     stemmer = PorterStemmer()
-    stopWords = set(stopwords.words('english'))
+    stop_words = set(stopwords.words('english'))
     reg_ex = re.compile(r'[A-Za-z]+')
     bag_of_tokens = []
     text = reg_ex.findall(text.lower())
     for word in text:
-        if len(word) > 1 and word not in stopWords:
+        if len(word) > 1 and word not in stop_words:
             bag_of_tokens.append(stemmer.stem(word))
     return bag_of_tokens
 
 def search_words(target, index):
-    
+    """
+    TODO : docstring
+    """
     target_list = tokenize_text(target)
     all_words = []
     res = {'words': dict(), "all_words": set()}
     positions = []
-    
+
     if len(target_list) == 0:
         print("Invalid query.")
         return None
-    
+
     for word in target_list:
         if word in index.keys():
-            print(str("\"" + word + "\""), "appears in", 
-                                len(index[word].keys()), "documents.")
+            print(str("\"" + word + "\""), "appears in",
+                  len(index[word].keys()), "documents.")
             all_words.append(set(index[word]))
             res['words'][word] = set(index[word].keys())
-                
+
         else:
             print(word, "not in index.")
-            
+
     for i in range(1, len(all_words)):
         all_words[0] = all_words[0].intersection(all_words[i])
-    
+
     res['all_words'] = set(all_words[0])
     print("All words in", len(res['all_words']), "documents.")
-    
+
     if len(target_list) > 1:
         res['exact_matches'] = set()
 
         for doc in res['all_words']:
             if doc != "total_occurences":
-                positions = np.asarray(index[target_list[0]][doc]['locations'])
+                positions = np.asarray(
+                    index[target_list[0]][doc]['locations'])
                 positions = set(positions)
 
                 for i in range(1, len(target_list)):
-                    positions_current = np.asarray(index[target_list[i]][doc]['locations'])
+                    positions_current = np.asarray(
+                        index[target_list[i]][doc]['locations'])
                     positions_current -= i
                     positions_current = set(positions_current)
-                    positions = positions_current.intersection(positions)
+                    positions = positions_current.intersection(
+                        positions)
 
                 if len(positions) != 0:
                     res['exact_matches'].add(doc)
 
-        print("Exact matches in ", len(res['exact_matches']), "documents.")
-    
+        print("Exact matches in ",
+              len(res['exact_matches']), "documents.")
+
     return res
 
 def view_article(article_index, texts):
@@ -137,20 +138,19 @@ def view_article(article_index, texts):
 
     Args:
         article_index (int): the index of the target article in texts.
-        texts (pandas.DataFrame): the DataFrame containing the article, 
+        texts (pandas.DataFrame): the DataFrame containing the article,
         generated through generate_texts_dataframe(...).
-    
     """
     text = texts.Text.values[article_index]
     author = texts.Author.values[article_index]
-    documentId = texts.DocumentId[article_index]
-    to_print ="\n--------------------------------------------"
-    to_print += "\nAuthor : " + str(author) + "\nId : " 
-    to_print += str(documentId)
+    document_id = texts.DocumentId[article_index]
+    to_print = "\n--------------------------------------------"
+    to_print += "\nAuthor : " + str(author) + "\nId : "
+    to_print += str(document_id)
     to_print += "\n--------------------------------------------"
     print(to_print)
     print(text)
-        
+
 def create_index_from_text(text, text_id):
     """
     This function creates an index through the raw text provided.
@@ -159,8 +159,8 @@ def create_index_from_text(text, text_id):
 
     Args:
         text (string): the raw text.
-        text_id (string): an idea for the text, when using text from the 
-        DataFrame  generated  with  generate_texts_dataframe(...),  this 
+        text_id (string): an idea for the text, when using text from the
+        DataFrame  generated  with  generate_texts_dataframe(...),  this
         should be its index in said DataFrame.
 
     Results:
@@ -170,12 +170,10 @@ def create_index_from_text(text, text_id):
                                  "occurences" : 3},
                          ind2 : {"locations" : [9],
                                  "occurences" : 1}}}
-
     """
     text = tokenize_text(text)
     index = dict()
-    for i in range(len(text)):
-        token = text[i]
+    for i, token in enumerate(text):
         if token in index:
             index[token][text_id]["locations"].append(i)
             index[token][text_id]["occurences"] += 1
@@ -191,7 +189,7 @@ def sum_two_indexes(index1, index2):
     This function is a summation of two indexes as used in this module.
     It serves as a reducer for index creation.
 
-    It  adds to the  first index the locations  contained in  the second 
+    It  adds to the  first index the locations  contained in  the second
     index,  respecting  the   index architecture. It   also  updates the
     "total_occurences" values.
 
@@ -214,7 +212,7 @@ def sum_two_indexes(index1, index2):
             total_occurences = 0
             index1[token] = index2[token]
         index1[token]["total_occurences"] += total_occurences
-    return(index1)    
+    return index1
 
 def generate_tokens_count(index):
     """
@@ -224,7 +222,7 @@ def generate_tokens_count(index):
 
     Args:
         index (dict): the index from which we want to count the tokens.
-    
+
     Returns:
         dict: the tokens count in a dictionnary such as follow :
                 {"total_occurences" : number of tokens in the corpus,
@@ -250,11 +248,11 @@ def calculate_tf_idf_for_token(index_token, tokens_count):
     It returns the coordinates of each document for the token  dimension
     in the tfidf "space".
     Args:
-        index_token (dict): the specific index part for a token i, it is 
+        index_token (dict): the specific index part for a token i, it is
         index[token].
         tokens_count (dict): the  tokens_count  generated with generate_
         tokens_count(...)
-    
+
     Returns:
         numpy.array: contains the tfidf for the specified token for each
         documents, its shape is (number of documents, 1).
@@ -262,15 +260,17 @@ def calculate_tf_idf_for_token(index_token, tokens_count):
     """
     tfidf_array = np.zeros((1, len(tokens_count) - 1))
     for text_id in list(index_token.keys())[1:]:
-        tf = index_token[text_id]["occurences"] / tokens_count[text_id]
-        idf = np.log(
-            (len(tokens_count) - 1) / (len(index_token) - 1 + 1))
-        tfidf_array[0][text_id] = tf * idf
+        term_freq = index_token[text_id]["occurences"]
+        term_freq *= 1 / tokens_count[text_id]
+        inverse_document_freq = (len(tokens_count) - 1)
+        inverse_document_freq *= 1 / (len(index_token) - 1 + 1)
+        inverse_document_freq = np.log(inverse_document_freq)
+        tfidf_array[0][text_id] = term_freq * inverse_document_freq
     return tfidf_array.T
 
 def vectorize_tfidf(query, index):
     """
-    This  function  vectorizes a text  in the same  space (tfidf) as the 
+    This  function  vectorizes a text  in the same  space (tfidf) as the
     documents.
 
     Args:
@@ -283,14 +283,17 @@ def vectorize_tfidf(query, index):
     tfidf_array = np.zeros((len(index.keys())))
     query_index = create_index_from_text(query, "query")
     tokens_count = generate_tokens_count(query_index)
-    c = 0
+    counter = 0
     for token in list(index.keys()):
         if token in query_index:
-            tf = query_index[token]["query"]["occurences"]
-            tf = tf / tokens_count["query"]
-            idf = np.log(2500 / (len(index[token]) - 1 + 1))
-            tfidf_array[c] = tf * idf
-        c += 1
+            term_freq = query_index[token]["query"]["occurences"]
+            term_freq = term_freq / tokens_count["query"]
+            inverse_document_freq = 2500
+            inverse_document_freq *= 1 / (len(index[token]) - 1 + 1)
+            inverse_document_freq = np.log(inverse_document_freq)
+            tfidf_array[counter] = term_freq
+            tfidf_array[counter] *= inverse_document_freq
+        counter += 1
     return tfidf_array
 
 def query_corpus(query, index, matrix_tfidf, texts, nb_to_show=3):
@@ -301,7 +304,7 @@ def query_corpus(query, index, matrix_tfidf, texts, nb_to_show=3):
     Args:
         query (string): raw text to query.
         index (string): the index corresponding to the corpus.
-        matrix_tfidf (numpy.array): the matrix  that  correspond  to the 
+        matrix_tfidf (numpy.array): the matrix  that  correspond  to the
         corpus vectors in the tfidf space.
         texts (pandas.DataFrame): the corpus dataframe.
         nb_to_show (int): numbers of documents to provide.
@@ -309,7 +312,7 @@ def query_corpus(query, index, matrix_tfidf, texts, nb_to_show=3):
     dot_product = np.dot(matrix_tfidf, vectorize_tfidf(query, index))
     inds = np.argsort(dot_product)[::-1][:nb_to_show]
     dot_product = np.sort(dot_product)[::-1][:nb_to_show]
-    results_df = pd.DataFrame({"DotProduct" : dot_product, 
+    results_df = pd.DataFrame({"DotProduct" : dot_product,
                                "Text" : texts.Text[inds],
                                "Author" : texts.Author[inds],
                                "DocumentId" : texts.DocumentId[inds]})
