@@ -116,7 +116,7 @@ def generate_query_dataframe(query, index):
 
     return df_results
 
-def query_by_occurences(query, index):
+def query_by_occurences(query, index, texts):
     """
     This function generates the results of a query by total number of
     occurences over every token.
@@ -134,9 +134,10 @@ def query_by_occurences(query, index):
     df_query_sum = pd.DataFrame(df_query.sum(axis=1), columns=['Total'])
     df_query = pd.concat([df_query, df_query_sum], axis=1)
     df_query = df_query.sort_values('Total', ascending=False)
+    df_query = df_query.join(texts)
     return df_query
 
-def query_by_ordered_occurences(query, index):
+def query_by_ordered_occurences(query, index, texts):
     """
     This function generates the results of a query respecting the
     tokens' order of the query. The results are ordered by number of
@@ -151,7 +152,9 @@ def query_by_ordered_occurences(query, index):
         index and a single column containing the number of occurences,
         ordered by total number of tokens.
     """
-    query_results = query_by_occurences(query, index)
+    query_results = query_by_occurences(query, index, texts)
+    columns_to_drop = ['Total', 'Text', 'DocumentId', 'Author']
+    query_results = query_results.drop(columns_to_drop, axis=1)
     tokens = list(query_results.columns)[:-1]
 
     list_results = []
@@ -184,61 +187,9 @@ def query_by_ordered_occurences(query, index):
     df_results = pd.DataFrame(list_results)
     df_results = df_results.sort_values('Occurences', ascending=False)
     df_results = df_results.set_index('Document')
+    df_results = df_results.join(texts)
+    df_results.index.name = None
     return df_results
-
-def search_words(target, index):
-    """
-    TODO : docstring
-    """
-    target_list = tokenize_text(target)
-    all_words = []
-    res = {'words': dict(), "all_words": set()}
-    positions = []
-
-    if len(target_list) == 0:
-        print("Invalid query.")
-        return None
-
-    for word in target_list:
-        if word in index.keys():
-            print(str("\"" + word + "\""), "appears in",
-                  len(index[word].keys()), "documents.")
-            all_words.append(set(index[word]))
-            res['words'][word] = set(index[word].keys())
-
-        else:
-            print(word, "not in index.")
-
-    for i in range(1, len(all_words)):
-        all_words[0] = all_words[0].intersection(all_words[i])
-
-    res['all_words'] = set(all_words[0])
-    print("All words in", len(res['all_words']), "documents.")
-
-    if len(target_list) > 1:
-        res['exact_matches'] = set()
-
-        for doc in res['all_words']:
-            if doc != "total_occurences":
-                positions = np.asarray(
-                    index[target_list[0]][doc]['locations'])
-                positions = set(positions)
-
-                for i in range(1, len(target_list)):
-                    positions_current = np.asarray(
-                        index[target_list[i]][doc]['locations'])
-                    positions_current -= i
-                    positions_current = set(positions_current)
-                    positions = positions_current.intersection(
-                        positions)
-
-                if len(positions) != 0:
-                    res['exact_matches'].add(doc)
-
-        print("Exact matches in ",
-              len(res['exact_matches']), "documents.")
-
-    return res
 
 def view_article(article_index, texts):
     """
