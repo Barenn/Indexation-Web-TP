@@ -54,6 +54,26 @@ def generate_texts_dataframe():
                           "DocumentId" : document_ids})
     return texts
 
+def view_article(article_ind, texts):
+    """
+    This function prints the  specified article through its index in the
+    DataFrame.
+
+    Args:
+        article_ind (int): the indice of the target article in texts.
+        texts (pandas.DataFrame): the DataFrame containing the article,
+        generated through generate_texts_dataframe(...).
+    """
+    text = texts.Text.values[article_ind]
+    author = texts.Author.values[article_ind]
+    document_id = texts.DocumentId[article_ind]
+    to_print = "\n--------------------------------------------"
+    to_print += "\nAuthor : " + str(author) + "\nId : "
+    to_print += str(document_id)
+    to_print += "\n--------------------------------------------"
+    print(to_print)
+    print(text)
+
 def tokenize_text(text):
     """
     This function transforms a raw text into a list of tokens.
@@ -76,140 +96,6 @@ def tokenize_text(text):
         if len(word) > 1 and word not in stop_words:
             bag_of_tokens.append(stemmer.stem(word))
     return bag_of_tokens
-
-def generate_query_dataframe(query, index):
-    """
-    This function generates a pandas.DataFrame containing the number of
-    occurences of every tokens in every documents, if said document as
-    at least one occurence of every token.
-
-    Args:
-        query (string): the queried text.
-        index (dict) : the index as created in this .py.
-
-    Returns:
-        pandas.DataFrame : a dataframe with the documents as index, and
-        the tokens as columns.
-    """
-    query = tokenize_text(query)
-    df_results_list = []
-
-    if len(query) == 0:
-        print("Invalid query.")
-        return None
-
-    for token in query:
-        if token in index.keys():
-            df_results = pd.DataFrame(index[token])
-            df_results = df_results.drop(["total_occurences"], axis=1)
-            df_results = df_results.drop(["locations"], axis=0)
-            df_results = df_results.T
-            df_results = df_results.rename(
-                columns={'occurences' : token})
-            df_results_list.append(df_results)
-        else:
-            print(token, "not in index.")
-    # then join by keeping only documents with every token at least once
-    df_results = df_results_list[0]
-    for df_current in df_results_list[1:]:
-        df_results = df_results.join(df_current, how='inner')
-
-    return df_results
-
-def query_by_occurences(query, index, texts):
-    """
-    This function generates the results of a query by total number of
-    occurences over every token.
-
-    Args:
-        query (string): the queried text.
-        index (dict) : the index as created in this .py.
-
-    Returns:
-        pandas.DataFrame : the dataframe containing the documents as
-        index, and the tokens as columns, ordered by total number of
-        tokens.
-    """
-    df_query = generate_query_dataframe(query, index)
-    df_query_sum = pd.DataFrame(df_query.sum(axis=1), columns=['Total'])
-    df_query = pd.concat([df_query, df_query_sum], axis=1)
-    df_query = df_query.sort_values('Total', ascending=False)
-    df_query = df_query.join(texts)
-    return df_query
-
-def query_by_ordered_occurences(query, index, texts):
-    """
-    This function generates the results of a query respecting the
-    tokens' order of the query. The results are ordered by number of
-    occurences.
-
-    Args:
-        query (string): the queried text.
-        index (dict) : the index as created in this .py.
-
-    Returns:
-        pandas.DataFrame : the dataframe containing the documents as
-        index and a single column containing the number of occurences,
-        ordered by total number of tokens.
-    """
-    query_results = query_by_occurences(query, index, texts)
-    columns_to_drop = ['Total', 'Text', 'DocumentId', 'Author']
-    query_results = query_results.drop(columns_to_drop, axis=1)
-    tokens = list(query_results.columns)[:-1]
-
-    list_results = []
-
-    no_result = True
-
-    for doc in query_results.index:
-        positions = np.asarray(
-            index[tokens[0]][doc]['locations'])
-        positions = set(positions)
-
-        for i in range(1, len(tokens)):
-            token = tokens[i]
-            positions_current = np.asarray(
-                index[token][doc]['locations'])
-            positions_current = positions_current - i
-            positions_current = set(positions_current)
-            positions = positions.intersection(
-                positions_current)
-
-        if len(positions) != 0:
-            to_add = {'Document' : doc, 'Occurences' : len(positions)}
-            list_results.append(to_add)
-            no_result = False
-
-    if no_result:
-        print("No match found.")
-        return 0
-
-    df_results = pd.DataFrame(list_results)
-    df_results = df_results.sort_values('Occurences', ascending=False)
-    df_results = df_results.set_index('Document')
-    df_results = df_results.join(texts)
-    df_results.index.name = None
-    return df_results
-
-def view_article(article_index, texts):
-    """
-    This function prints the  specified article through its index in the
-    DataFrame.
-
-    Args:
-        article_index (int): the index of the target article in texts.
-        texts (pandas.DataFrame): the DataFrame containing the article,
-        generated through generate_texts_dataframe(...).
-    """
-    text = texts.Text.values[article_index]
-    author = texts.Author.values[article_index]
-    document_id = texts.DocumentId[article_index]
-    to_print = "\n--------------------------------------------"
-    to_print += "\nAuthor : " + str(author) + "\nId : "
-    to_print += str(document_id)
-    to_print += "\n--------------------------------------------"
-    print(to_print)
-    print(text)
 
 def create_index_from_text(text, text_id):
     """
@@ -274,6 +160,206 @@ def sum_two_indexes(index1, index2):
         index1[token]["total_occurences"] += total_occurences
     return index1
 
+def generate_query_dataframe(query, index):
+    """
+    This function generates a pandas.DataFrame containing the number of
+    occurences of every tokens in every documents, if said document as
+    at least one occurence of every token.
+
+    Args:
+        query (string): the queried text.
+        index (dict) : the index as created in this .py.
+
+    Returns:
+        pandas.DataFrame : a dataframe with the documents as index, and
+        the tokens as columns.
+    """
+    query = tokenize_text(query)
+
+    df_results_list = []
+
+    if len(query) == 0:
+        print("Invalid query.")
+        return None
+
+    for token in query:
+        if token in index.keys():
+            df_results = pd.DataFrame(index[token])
+            df_results = df_results.drop(["total_occurences"], axis=1)
+            df_results = df_results.drop(["locations"], axis=0)
+            df_results = df_results.T
+            df_results = df_results.rename(
+                columns={'occurences' : token})
+            df_results_list.append(df_results)
+        else:
+            print(token, "not in index.")
+    # then join by keeping only documents with every token at least once
+    df_results = df_results_list[0]
+    for df_current in df_results_list[1:]:
+        df_results = df_results.join(df_current, how='inner')
+
+    return df_results
+
+def query_by_occurences(query, index, texts):
+    """
+    This function generates the results of a query by total number of
+    occurences over every token.
+
+    Args:
+        query (string): the queried text.
+        index (dict) : the index as created in this .py.
+        texts (pandas.DataFrame) : the dataframe generated using the
+        generate_texts_dataframe function.
+
+    Returns:
+        pandas.DataFrame : the dataframe containing the documents as
+        index, and the tokens as columns, ordered by total number of
+        tokens.
+    """
+    df_query = generate_query_dataframe(query, index)
+    df_query_sum = pd.DataFrame(df_query.sum(axis=1), columns=['Total'])
+    df_query = pd.concat([df_query, df_query_sum], axis=1)
+    df_query = df_query.sort_values('Total', ascending=False)
+    df_query = df_query.join(texts)
+    return df_query
+
+def query_by_ordered_occurences(query, index, texts):
+    """
+    This function generates the results of a query respecting the
+    tokens' order of the query. The results are ordered by number of
+    occurences.
+
+    Args:
+        query (string): the queried text.
+        index (dict) : the index as created in this .py.
+        texts (pandas.DataFrame) : the dataframe generated using the
+        generate_texts_dataframe function.
+
+    Returns:
+        pandas.DataFrame : the dataframe containing the documents as
+        index and a single column containing the number of occurences,
+        ordered by total number of tokens.
+    """
+    query_results = query_by_occurences(query, index, texts)
+    columns_to_drop = ['Total', 'Text', 'DocumentId', 'Author']
+    query_results = query_results.drop(columns_to_drop, axis=1)
+    tokens = list(query_results.columns)[:-1]
+
+    list_results = []
+
+    no_result = True
+
+    for doc in query_results.index:
+        positions = np.asarray(
+            index[tokens[0]][doc]['locations'])
+        positions = set(positions)
+
+        for i in range(1, len(tokens)):
+            token = tokens[i]
+            positions_current = np.asarray(
+                index[token][doc]['locations'])
+            positions_current = positions_current - i
+            positions_current = set(positions_current)
+            positions = positions.intersection(
+                positions_current)
+
+        if len(positions) != 0:
+            to_add = {'Document' : doc, 'Occurences' : len(positions)}
+            list_results.append(to_add)
+            no_result = False
+
+    if no_result:
+        print("No match found.")
+        return 0
+
+    df_results = pd.DataFrame(list_results)
+    df_results = df_results.sort_values('Occurences', ascending=False)
+    df_results = df_results.set_index('Document')
+    df_results = df_results.join(texts)
+    df_results.index.name = None
+    return df_results
+
+def query_by_frequences(query, index, texts):
+    """
+    This function generates the results of a query ordered by the
+    frequence of every token inside the documents.
+
+    Args:
+        query (string): the queried text.
+        index (dict) : the index as created in this .py.
+        texts (pandas.DataFrame) : the dataframe generated using the
+        generate_texts_dataframe function.
+
+    Returns:
+        pandas.DataFrame : the dataframe containing the documents as
+        index, and the tokens as columns, ordered by frequence of
+        tokens.
+    """
+    tokens_count = generate_tokens_count(index)
+    tokens_count.pop("tokens_total")
+    tokens_count = pd.DataFrame(tokens_count.items(),
+                                columns=["Document", "TokensTotal"])
+    tokens_count = tokens_count.set_index('Document')
+    tokens_count.index.name = None
+
+    df_query = generate_query_dataframe(query, index)
+    for token in df_query.columns:
+        df_query[token] = df_query[token].divide(
+            tokens_count.loc[df_query.index].TokensTotal)
+    df_query_sum = pd.DataFrame(df_query.sum(axis=1), columns=['Total'])
+    df_query = pd.concat([df_query, df_query_sum], axis=1)
+    df_query = df_query.sort_values('Total', ascending=False)
+    df_query = df_query.join(texts)
+    df_query = df_query.dropna()
+    return df_query
+
+def generate_idf_dataframe(index, texts):
+    """
+    This function generates a pandas.DataFrame containing the inverse
+    document frequency for every token.
+
+    Args:
+        index (dict) : the index as created in this .py.
+        texts (pandas.DataFrame) : the dataframe generated using the
+        generate_texts_dataframe function.
+
+    Returns:
+        pandas.DataFrame : contains two columns, the tokens and their
+        corresponding inverse document frequency.
+    """
+    inverse_doc_freq = [{"Token" : key,
+                         "IDF" : len(values.keys()) - 1}
+                        for key, values in index.items()]
+    inverse_doc_freq = pd.DataFrame(inverse_doc_freq)
+    inverse_doc_freq['IDF'] = inverse_doc_freq['IDF'].apply(
+        lambda x: np.log(len(texts) / x + 1))
+    return inverse_doc_freq
+
+def query_by_tfidf(query, index, texts):
+    """
+    This function generates the results of a query ordered by the tf-idf
+    of every token inside the documents.
+
+    Args:
+        query (string): the queried text.
+        index (dict) : the index as created in this .py.
+        texts (pandas.DataFrame) : the dataframe generated using the
+        generate_texts_dataframe function.
+
+    Returns:
+        pandas.DataFrame : the dataframe containing the documents as
+        index, and the tokens as columns, ordered by tf-idf of tokens.
+    """
+    results_query = query_by_frequences(query, index, texts)
+    inverse_doc_freq = generate_idf_dataframe(index, texts)
+    query = tokenize_text(query)
+    inverse_doc_freq = inverse_doc_freq[
+        inverse_doc_freq.Token.isin(query)]
+    inverse_doc_freq = list(inverse_doc_freq['IDF'])
+    results_query[query] = results_query[query].mul(
+        inverse_doc_freq, axis=1)
+    return results_query
+
 def generate_tokens_count(index):
     """
     This  function  counts the tokens in  each documents index, and also
@@ -285,7 +371,7 @@ def generate_tokens_count(index):
 
     Returns:
         dict: the tokens count in a dictionnary such as follow :
-                {"total_occurences" : number of tokens in the corpus,
+                {"tokens_total" : number of tokens in the corpus,
                  ind1 : number of tokens in the document ind1}
     """
     tokens_count = dict()
@@ -302,33 +388,31 @@ def generate_tokens_count(index):
                 tokens_count[key] = index[token][key]["occurences"]
     return tokens_count
 
-def calculate_tf_idf_for_token(index_token, tokens_count):
+def calculate_tf_idf_matrix(index, texts):
     """
-    This function calculates the tf_idf for a token in each document.
-    It returns the coordinates of each document for the token  dimension
-    in the tfidf "space".
+    This function calculates the TF-IDF matrix, the representation of
+    all documents in the TF-IDF space.
+
     Args:
-        index_token (dict): the specific index part for a token i, it is
-        index[token].
-        tokens_count (dict): the  tokens_count  generated with generate_
-        tokens_count(...)
+        index (dict): the index from which we want to count the tokens.
+        texts (pandas.DataFrame) : the dataframe generated using the
+        generate_texts_dataframe function.
 
     Returns:
-        numpy.array: contains the tfidf for the specified token for each
-        documents, its shape is (number of documents, 1).
-
+        numpy.array : shape (number of documents, number of tokens).
     """
-    tfidf_array = np.zeros((1, len(tokens_count) - 1))
-    for text_id in list(index_token.keys())[1:]:
-        term_freq = index_token[text_id]["occurences"]
-        term_freq *= 1 / tokens_count[text_id]
-        inverse_document_freq = (len(tokens_count) - 1)
-        inverse_document_freq *= 1 / (len(index_token) - 1 + 1)
-        inverse_document_freq = np.log(inverse_document_freq)
-        tfidf_array[0][text_id] = term_freq * inverse_document_freq
-    return tfidf_array.T
+    tf_idf_matrix = np.zeros((len(texts), len(index.keys())))
+    for i, value in enumerate(index.values()):
+        values = [d['occurences'] for d in list(value.values())[1:]]
+        tf_idf_matrix[np.array(list(value.keys())[1:]), i] = values
+    tf_idf_matrix = tf_idf_matrix / tf_idf_matrix.sum(
+        axis=0, keepdims=1)
+    idf_matrix = np.array(
+        generate_idf_dataframe(index, texts)['IDF'])
+    tf_idf_matrix = np.multiply(tf_idf_matrix, idf_matrix)
+    return tf_idf_matrix
 
-def vectorize_tfidf(query, index):
+def vectorize_tfidf(query, index, texts):
     """
     This  function  vectorizes a text  in the same  space (tfidf) as the
     documents.
@@ -340,21 +424,18 @@ def vectorize_tfidf(query, index):
     Returns:
         numpy.array: contains the vector in the tfidf space of the text.
     """
-    tfidf_array = np.zeros((len(index.keys())))
-    query_index = create_index_from_text(query, "query")
-    tokens_count = generate_tokens_count(query_index)
-    counter = 0
-    for token in list(index.keys()):
-        if token in query_index:
-            term_freq = query_index[token]["query"]["occurences"]
-            term_freq = term_freq / tokens_count["query"]
-            inverse_document_freq = 2500
-            inverse_document_freq *= 1 / (len(index[token]) - 1 + 1)
-            inverse_document_freq = np.log(inverse_document_freq)
-            tfidf_array[counter] = term_freq
-            tfidf_array[counter] *= inverse_document_freq
-        counter += 1
-    return tfidf_array
+    index_query = create_index_from_text(query, 'query')
+    tokens_count = generate_tokens_count(index_query)['tokens_total']
+    idf_df = generate_idf_dataframe(index, texts).set_index('Token')
+
+    for token in index_query:
+        idf_df.loc[token] = (idf_df.loc[token] *
+                             index_query[token]['total_occurences'])
+        idf_df.loc[token] = idf_df.loc[token] / tokens_count
+
+    idf_df[~idf_df.index.isin(index_query.keys())] = 0
+
+    return np.array(idf_df['IDF'])
 
 def query_corpus(query, index, matrix_tfidf, texts, nb_to_show=3):
     """
@@ -369,7 +450,8 @@ def query_corpus(query, index, matrix_tfidf, texts, nb_to_show=3):
         texts (pandas.DataFrame): the corpus dataframe.
         nb_to_show (int): numbers of documents to provide.
     """
-    dot_product = np.dot(matrix_tfidf, vectorize_tfidf(query, index))
+    query_vector = vectorize_tfidf(query, index, texts)
+    dot_product = np.dot(matrix_tfidf, query_vector)
     inds = np.argsort(dot_product)[::-1][:nb_to_show]
     dot_product = np.sort(dot_product)[::-1][:nb_to_show]
     results_df = pd.DataFrame({"DotProduct" : dot_product,
