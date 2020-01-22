@@ -77,6 +77,115 @@ def tokenize_text(text):
             bag_of_tokens.append(stemmer.stem(word))
     return bag_of_tokens
 
+def generate_query_dataframe(query, index):
+    """
+    This function generates a pandas.DataFrame containing the number of
+    occurences of every tokens in every documents, if said document as
+    at least one occurence of every token.
+
+    Args:
+        query (string): the queried text.
+        index (dict) : the index as created in this .py.
+
+    Returns:
+        pandas.DataFrame : a dataframe with the documents as index, and
+        the tokens as columns.
+    """
+    query = tokenize_text(query)
+    df_results_list = []
+
+    if len(query) == 0:
+        print("Invalid query.")
+        return None
+
+    for token in query:
+        if token in index.keys():
+            df_results = pd.DataFrame(index[token])
+            df_results = df_results.drop(["total_occurences"], axis=1)
+            df_results = df_results.drop(["locations"], axis=0)
+            df_results = df_results.T
+            df_results = df_results.rename(
+                columns={'occurences' : token})
+            df_results_list.append(df_results)
+        else:
+            print(token, "not in index.")
+    # then join by keeping only documents with every token at least once
+    df_results = df_results_list[0]
+    for df_current in df_results_list[1:]:
+        df_results = df_results.join(df_current, how='inner')
+
+    return df_results
+
+def query_by_occurences(query, index):
+    """
+    This function generates the results of a query by total number of
+    occurences over every token.
+
+    Args:
+        query (string): the queried text.
+        index (dict) : the index as created in this .py.
+
+    Returns:
+        pandas.DataFrame : the dataframe containing the documents as
+        index, and the tokens as columns, ordered by total number of
+        tokens.
+    """
+    df_query = generate_query_dataframe(query, index)
+    df_query_sum = pd.DataFrame(df_query.sum(axis=1), columns=['Total'])
+    df_query = pd.concat([df_query, df_query_sum], axis=1)
+    df_query = df_query.sort_values('Total', ascending=False)
+    return df_query
+
+def query_by_ordered_occurences(query, index):
+    """
+    This function generates the results of a query respecting the
+    tokens' order of the query. The results are ordered by number of
+    occurences.
+
+    Args:
+        query (string): the queried text.
+        index (dict) : the index as created in this .py.
+
+    Returns:
+        pandas.DataFrame : the dataframe containing the documents as
+        index and a single column containing the number of occurences,
+        ordered by total number of tokens.
+    """
+    query_results = query_by_occurences(query, index)
+    tokens = list(query_results.columns)[:-1]
+
+    list_results = []
+
+    no_result = True
+
+    for doc in query_results.index:
+        positions = np.asarray(
+            index[tokens[0]][doc]['locations'])
+        positions = set(positions)
+
+        for i in range(1, len(tokens)):
+            token = tokens[i]
+            positions_current = np.asarray(
+                index[token][doc]['locations'])
+            positions_current = positions_current - i
+            positions_current = set(positions_current)
+            positions = positions.intersection(
+                positions_current)
+
+        if len(positions) != 0:
+            to_add = {'Document' : doc, 'Occurences' : len(positions)}
+            list_results.append(to_add)
+            no_result = False
+
+    if no_result:
+        print("No match found.")
+        return 0
+
+    df_results = pd.DataFrame(list_results)
+    df_results = df_results.sort_values('Occurences', ascending=False)
+    df_results = df_results.set_index('Document')
+    return df_results
+
 def search_words(target, index):
     """
     TODO : docstring
