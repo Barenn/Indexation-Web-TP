@@ -362,8 +362,8 @@ def query_by_tfidf(query, index, texts):
     results_query_sum = pd.DataFrame(
         results_query.sum(axis=1), columns=['Total'])
     results_query['Total'] = results_query_sum
-    results_query = results_query.sort_values('Total')
     results_query = results_query.join(texts)
+    results_query = results_query.sort_values('Total')
     return results_query
 
 def generate_tokens_count(index):
