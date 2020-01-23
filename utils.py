@@ -350,6 +350,7 @@ def query_by_tfidf(query, index, texts):
         index, and the tokens as columns, ordered by tf-idf of tokens.
     """
     results_query = query_by_frequences(query, index, texts)
+    results_query = results_query.drop(['Total'], axis=1)
     inverse_doc_freq = generate_idf_dataframe(index, texts)
     query = tokenize_text(query)
     inverse_doc_freq = inverse_doc_freq[
@@ -357,6 +358,10 @@ def query_by_tfidf(query, index, texts):
     inverse_doc_freq = list(inverse_doc_freq['IDF'])
     results_query[query] = results_query[query].mul(
         inverse_doc_freq, axis=1)
+    results_query_sum = pd.DataFrame(
+        results_query[query].sum(axis=1), columns=['Total'])
+    results_query['Total'] = results_query_sum
+    results_query = results_query.sort_values('Total')
     return results_query
 
 def generate_tokens_count(index):
