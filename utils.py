@@ -240,10 +240,11 @@ def query_by_ordered_occurences(query, index, texts):
         index and a single column containing the number of occurences,
         ordered by total number of tokens.
     """
+    # Get the results of a simple query to get occurences of tokens.
     query_results = query_by_occurences(query, index, texts)
     columns_to_drop = ['Total', 'Text', 'DocumentId', 'Author']
     query_results = query_results.drop(columns_to_drop, axis=1)
-    tokens = list(query_results.columns)[:-1]
+    tokens = list(query_results.columns)
 
     list_results = []
 
@@ -253,7 +254,6 @@ def query_by_ordered_occurences(query, index, texts):
         positions = np.asarray(
             index[tokens[0]][doc]['locations'])
         positions = set(positions)
-
         for i in range(1, len(tokens)):
             token = tokens[i]
             positions_current = np.asarray(
@@ -262,7 +262,6 @@ def query_by_ordered_occurences(query, index, texts):
             positions_current = set(positions_current)
             positions = positions.intersection(
                 positions_current)
-
         if len(positions) != 0:
             to_add = {'Document' : doc, 'Occurences' : len(positions)}
             list_results.append(to_add)
@@ -402,9 +401,11 @@ def calculate_tf_idf_matrix(index, texts):
         numpy.array : shape (number of documents, number of tokens).
     """
     tf_idf_matrix = np.zeros((len(texts), len(index.keys())))
+    # Fetching number of occurences for every tokens by documents.
     for i, value in enumerate(index.values()):
         values = [d['occurences'] for d in list(value.values())[1:]]
         tf_idf_matrix[np.array(list(value.keys())[1:]), i] = values
+    # Divide each lines by its sum to get the frequences.
     tf_idf_matrix = tf_idf_matrix / tf_idf_matrix.sum(
         axis=0, keepdims=1)
     idf_matrix = np.array(
