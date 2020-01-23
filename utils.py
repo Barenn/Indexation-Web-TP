@@ -415,9 +415,10 @@ def calculate_tf_idf_matrix(index, texts):
     # Divide each lines by its sum to get the frequences.
     tf_idf_matrix = tf_idf_matrix / tf_idf_matrix.sum(
         axis=0, keepdims=1)
+    # And then multiply every line of the TF matrix by the IDF vector.
     idf_matrix = np.array(
         generate_idf_dataframe(index, texts)['IDF'])
-    tf_idf_matrix = np.multiply(tf_idf_matrix, idf_matrix)
+    tf_idf_matrix = tf_idf_matrix * idf_matrix
     return tf_idf_matrix
 
 def vectorize_tfidf(query, index, texts):
@@ -445,7 +446,7 @@ def vectorize_tfidf(query, index, texts):
 
     return np.array(idf_df['IDF'])
 
-def query_corpus(query, index, matrix_tfidf, texts, nb_to_show=3):
+def query_corpus(query, index, matrix_tfidf, texts):
     """
     This function queries the corpus with a raw text.
     It returns the corpus' documents that have the highest dot product.
@@ -460,8 +461,8 @@ def query_corpus(query, index, matrix_tfidf, texts, nb_to_show=3):
     """
     query_vector = vectorize_tfidf(query, index, texts)
     dot_product = np.dot(matrix_tfidf, query_vector)
-    inds = np.argsort(dot_product)[::-1][:nb_to_show]
-    dot_product = np.sort(dot_product)[::-1][:nb_to_show]
+    inds = np.argsort(dot_product)[::-1]
+    dot_product = np.sort(dot_product)[::-1]
     results_df = pd.DataFrame({"DotProduct" : dot_product,
                                "Text" : texts.Text[inds],
                                "Author" : texts.Author[inds],
