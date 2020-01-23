@@ -466,4 +466,5 @@ def query_corpus(query, index, matrix_tfidf, texts, nb_to_show=3):
                                "Text" : texts.Text[inds],
                                "Author" : texts.Author[inds],
                                "DocumentId" : texts.DocumentId[inds]})
+    results_df = results_df.sort_values('DotProduct', ascending=False)
     return results_df
